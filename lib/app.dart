@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:medlens_mobile/config/env.dart';
 import 'package:medlens_mobile/config/router.dart';
 import 'package:medlens_mobile/config/theme.dart';
 import 'package:medlens_mobile/features/history/bloc/history_bloc.dart';
 import 'package:medlens_mobile/features/session/bloc/session_bloc.dart';
 import 'package:medlens_mobile/features/summary/bloc/summary_bloc.dart';
+import 'package:medlens_mobile/services/audio_service.dart';
+import 'package:medlens_mobile/services/camera_service.dart';
 import 'package:medlens_mobile/services/local_storage_service.dart';
+import 'package:medlens_mobile/services/websocket_service.dart';
 
 /// Root application widget.
 ///
@@ -21,7 +25,12 @@ class App extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<SessionBloc>(
-          create: (_) => SessionBloc(),
+          create: (_) => SessionBloc(
+            webSocketService:
+                WebSocketService(baseUrl: EnvConfig.backendWsUrl),
+            audioService: AudioService(),
+            cameraService: CameraService(),
+          ),
         ),
         BlocProvider<SummaryBloc>(
           create: (_) => SummaryBloc(),

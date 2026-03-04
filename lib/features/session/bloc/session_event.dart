@@ -63,3 +63,59 @@ final class TextMessageSent extends SessionEvent {
   @override
   List<Object?> get props => [text];
 }
+
+/// Dr. Muhammad requested to see the injury.
+final class CameraRequested extends SessionEvent {
+  final String prompt;
+  const CameraRequested(this.prompt);
+  @override
+  List<Object?> get props => [prompt];
+}
+
+/// User opened the camera preview.
+final class CameraOpened extends SessionEvent {}
+
+/// User captured a single high-quality photo.
+final class PhotoCaptured extends SessionEvent {
+  final Uint8List jpegFrame;
+  const PhotoCaptured(this.jpegFrame);
+
+  @override
+  List<Object?> get props => [jpegFrame];
+}
+
+/// Dr. Muhammad requested a brief live camera feed.
+final class LiveStreamStarted extends SessionEvent {
+  final String prompt;
+  final int durationSeconds;
+  const LiveStreamStarted(this.prompt, this.durationSeconds);
+  @override
+  List<Object?> get props => [prompt, durationSeconds];
+}
+
+/// Live camera feed explicitly stopped.
+final class LiveStreamStopped extends SessionEvent {}
+
+/// User closed the camera preview.
+final class CameraClosed extends SessionEvent {}
+
+/// Camera finished initializing and is ready for preview.
+final class CameraInitialized extends SessionEvent {
+  const CameraInitialized();
+}
+
+/// User tapped the mic button.
+///
+/// When Dr. Muhammad is speaking → triggers barge-in.
+/// Otherwise → sends an explicit end-of-turn signal so Gemini responds
+/// immediately (fallback when VAD is slow to detect speech end).
+final class MicTapped extends SessionEvent {
+  const MicTapped();
+}
+
+/// Dr. Muhammad's voice finished playing.
+final class AudioPlaybackFinished extends SessionEvent {
+  const AudioPlaybackFinished();
+  @override
+  List<Object?> get props => [];
+}

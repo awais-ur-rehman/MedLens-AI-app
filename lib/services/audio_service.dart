@@ -29,14 +29,8 @@ class AudioService {
   FlutterSoundRecorder? _recorder;
   FlutterSoundPlayer? _player;
 
-  /// Subscription on the recording stream coming from flutter_sound.
-  StreamSubscription<Uint8List>? _recorderSub;
-
-  /// Controller used as the recording sink.
-  StreamController<Food>? _recorderStreamCtrl;
-
-  /// Sink used to feed PCM data into the player.
-  StreamController<Food>? _playerFoodCtrl;
+  /// Controller used as the recording sink (Uint8List in flutter_sound 9.30+).
+  StreamController<Uint8List>? _recorderStreamCtrl;
 
   bool _isRecording = false;
   bool _isPlayerOpen = false;
@@ -56,19 +50,15 @@ class AudioService {
 
     // Ensure recorder is open.
     _recorder ??= FlutterSoundRecorder();
-    if (!_recorder!.isOpen()) {
+    if (_recorder!.isStopped) {
       await _recorder!.openRecorder();
     }
 
     // Create a stream controller to receive recorded data.
-    _recorderStreamCtrl = StreamController<Food>();
+    _recorderStreamCtrl = StreamController<Uint8List>();
 
-    // flutter_sound delivers `FoodData` events via this stream.
-    _recorderSub = _recorderStreamCtrl!.stream
-        .where((food) => food is FoodData)
-        .cast<FoodData>()
-        .map((foodData) => foodData.data!)
-        .listen(onChunk);
+    // flutter_sound 9.30+ delivers Uint8List directly via toStream.
+    _recorderStreamCtrl!.stream.listen(onChunk);
 
     await _recorder!.startRecorder(
       toStream: _recorderStreamCtrl!.sink,
@@ -86,10 +76,8 @@ class AudioService {
     if (!_isRecording) return;
 
     await _recorder?.stopRecorder();
-    await _recorderSub?.cancel();
     await _recorderStreamCtrl?.close();
 
-    _recorderSub = null;
     _recorderStreamCtrl = null;
     _isRecording = false;
   }
@@ -100,31 +88,54 @@ class AudioService {
   //  Playback (PCM 24 kHz → speaker)
   // ---------------------------------------------------------------
 
-  /// Feed a chunk of PCM audio (24 kHz, 16-bit mono) to the speaker.
-  ///
-  /// The player is lazily opened on the first call. Subsequent calls simply
-  /// push data into the player's food sink for gapless playback.
-  Future<void> playChunk(Uint8List pcmData) async {
-    // Lazily open the player and start a streaming session.
+  /// Plays a complete buffer of raw PCM audio (24 kHz, 16-bit mono) by
+  /// dynamically wrapping it in a standard WAV header, ensuring stable playback
+  /// without threading stutters.
+  Future<void> playWavBuffer(Uint8List rawPcm, void Function() onFinished) async {
+    // Interrupt any currently playing audio
+    await stopPlayback();
+
     if (!_isPlayerOpen) {
       _player ??= FlutterSoundPlayer();
       if (!_player!.isOpen()) {
         await _player!.openPlayer();
       }
-
-      _playerFoodCtrl = StreamController<Food>();
-
-      await _player!.startPlayerFromStream(
-        codec: Codec.pcm16,
-        numChannels: kNumChannels,
-        sampleRate: kPlaySampleRate,
-      );
-
       _isPlayerOpen = true;
     }
 
-    // Push the audio data into the player's food sink.
-    _player!.foodSink?.add(FoodData(pcmData));
+    // Attach WAV header to the raw PCM data
+    final header = _buildWavHeader(rawPcm.length, kPlaySampleRate, kNumChannels);
+    final wavBytes = Uint8List(header.length + rawPcm.length);
+    wavBytes.setAll(0, header);
+    wavBytes.setAll(header.length, rawPcm);
+
+    await _player!.startPlayer(
+      fromDataBuffer: wavBytes,
+      codec: Codec.pcm16WAV,
+      whenFinished: () {
+        onFinished();
+      },
+    );
+  }
+
+  /// Builds a standard 44-byte WAV header for the raw PCM stream.
+  Uint8List _buildWavHeader(int dataLength, int sampleRate, int channels) {
+    final byteRate = sampleRate * channels * 2;
+    final header = ByteData(44);
+    header.setUint32(0, 0x52494646, Endian.big); // "RIFF"
+    header.setUint32(4, dataLength + 36, Endian.little); // ChunkSize
+    header.setUint32(8, 0x57415645, Endian.big); // "WAVE"
+    header.setUint32(12, 0x666D7420, Endian.big); // "fmt "
+    header.setUint32(16, 16, Endian.little); // Subchunk1Size
+    header.setUint16(20, 1, Endian.little); // AudioFormat (PCM)
+    header.setUint16(22, channels, Endian.little); // NumChannels
+    header.setUint32(24, sampleRate, Endian.little); // SampleRate
+    header.setUint32(28, byteRate, Endian.little); // ByteRate
+    header.setUint16(32, channels * 2, Endian.little); // BlockAlign
+    header.setUint16(34, 16, Endian.little); // BitsPerSample
+    header.setUint32(36, 0x64617461, Endian.big); // "data"
+    header.setUint32(40, dataLength, Endian.little); // Subchunk2Size
+    return header.buffer.asUint8List();
   }
 
   /// Immediately stop playback — used for barge-in when the user starts
@@ -137,10 +148,6 @@ class AudioService {
     } catch (_) {
       // Player may already be stopped.
     }
-
-    await _playerFoodCtrl?.close();
-    _playerFoodCtrl = null;
-    _isPlayerOpen = false;
   }
 
   // ---------------------------------------------------------------

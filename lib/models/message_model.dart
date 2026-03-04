@@ -20,6 +20,18 @@ class MessageModel extends Equatable {
     );
   }
 
+  MessageModel copyWith({
+    String? text,
+    String? speaker,
+    DateTime? timestamp,
+  }) {
+    return MessageModel(
+      text: text ?? this.text,
+      speaker: speaker ?? this.speaker,
+      timestamp: timestamp ?? this.timestamp,
+    );
+  }
+
   @override
   List<Object?> get props => [text, speaker, timestamp];
 }

@@ -181,7 +181,7 @@ class SummaryScreen extends StatelessWidget {
 
     buf.writeln(s.disclaimer);
 
-    SharePlus.instance.share(ShareParams(text: buf.toString()));
+    Share.share(buf.toString());
   }
 }
 

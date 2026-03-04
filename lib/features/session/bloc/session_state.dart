@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 import 'package:medlens_mobile/models/assessment_model.dart';
 import 'package:medlens_mobile/models/care_summary_model.dart';
@@ -9,12 +11,16 @@ import 'package:medlens_mobile/models/overlay_model.dart';
 enum SessionStatus { initial, connecting, connected, active, ending, ended, error }
 
 /// Agent speaking / listening state.
-enum AgentSpeaking { idle, listening, thinking, speaking }
+enum SessionMode { idle, doctorSpeaking, userSpeaking, thinking }
+
+/// Camera UI state.
+enum CameraMode { inactive, captureReady, liveStreaming }
 
 /// State for the Session Bloc.
 final class SessionState extends Equatable {
   final SessionStatus status;
-  final AgentSpeaking agentStatus;
+  final SessionMode sessionMode;
+  final CameraMode cameraMode;
   final String sessionId;
   final List<MessageModel> transcript;
   final AssessmentModel? currentAssessment;
@@ -24,10 +30,15 @@ final class SessionState extends Equatable {
   final String? errorMessage;
   final bool isMicActive;
   final bool isCameraActive;
+  final bool isAgentTurnActive;
+  final Uint8List? lastCapturedImage;
+  final bool cameraButtonPulsing;
+  final bool cameraInitializing;
 
   const SessionState({
     this.status = SessionStatus.initial,
-    this.agentStatus = AgentSpeaking.idle,
+    this.sessionMode = SessionMode.idle,
+    this.cameraMode = CameraMode.inactive,
     this.sessionId = '',
     this.transcript = const [],
     this.currentAssessment,
@@ -37,11 +48,16 @@ final class SessionState extends Equatable {
     this.errorMessage,
     this.isMicActive = false,
     this.isCameraActive = false,
+    this.isAgentTurnActive = false,
+    this.lastCapturedImage,
+    this.cameraButtonPulsing = false,
+    this.cameraInitializing = false,
   });
 
   SessionState copyWith({
     SessionStatus? status,
-    AgentSpeaking? agentStatus,
+    SessionMode? sessionMode,
+    CameraMode? cameraMode,
     String? sessionId,
     List<MessageModel>? transcript,
     AssessmentModel? currentAssessment,
@@ -51,10 +67,15 @@ final class SessionState extends Equatable {
     String? errorMessage,
     bool? isMicActive,
     bool? isCameraActive,
+    bool? isAgentTurnActive,
+    Uint8List? lastCapturedImage,
+    bool? cameraButtonPulsing,
+    bool? cameraInitializing,
   }) =>
       SessionState(
         status: status ?? this.status,
-        agentStatus: agentStatus ?? this.agentStatus,
+        sessionMode: sessionMode ?? this.sessionMode,
+        cameraMode: cameraMode ?? this.cameraMode,
         sessionId: sessionId ?? this.sessionId,
         transcript: transcript ?? this.transcript,
         currentAssessment: currentAssessment ?? this.currentAssessment,
@@ -64,12 +85,17 @@ final class SessionState extends Equatable {
         errorMessage: errorMessage ?? this.errorMessage,
         isMicActive: isMicActive ?? this.isMicActive,
         isCameraActive: isCameraActive ?? this.isCameraActive,
+        isAgentTurnActive: isAgentTurnActive ?? this.isAgentTurnActive,
+        lastCapturedImage: lastCapturedImage ?? this.lastCapturedImage,
+        cameraButtonPulsing: cameraButtonPulsing ?? this.cameraButtonPulsing,
+        cameraInitializing: cameraInitializing ?? this.cameraInitializing,
       );
 
   @override
   List<Object?> get props => [
         status,
-        agentStatus,
+        sessionMode,
+        cameraMode,
         sessionId,
         transcript,
         currentAssessment,
@@ -79,5 +105,9 @@ final class SessionState extends Equatable {
         errorMessage,
         isMicActive,
         isCameraActive,
+        isAgentTurnActive,
+        lastCapturedImage,
+        cameraButtonPulsing,
+        cameraInitializing,
       ];
 }

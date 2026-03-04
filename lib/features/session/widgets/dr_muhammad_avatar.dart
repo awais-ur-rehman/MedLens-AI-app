@@ -5,7 +5,7 @@ import 'package:medlens_mobile/features/session/bloc/session_state.dart';
 class DrMuhammadAvatar extends StatefulWidget {
   const DrMuhammadAvatar({super.key, required this.agentStatus});
 
-  final AgentSpeaking agentStatus;
+  final SessionMode agentStatus;
 
   @override
   State<DrMuhammadAvatar> createState() => _DrMuhammadAvatarState();
@@ -39,18 +39,18 @@ class _DrMuhammadAvatarState extends State<DrMuhammadAvatar>
 
   void _syncAnimation() {
     switch (widget.agentStatus) {
-      case AgentSpeaking.speaking:
+      case SessionMode.doctorSpeaking:
         _controller.repeat(reverse: true);
-      case AgentSpeaking.listening:
+      case SessionMode.userSpeaking:
         // Subtle slow pulse
         _controller
           ..duration = const Duration(milliseconds: 2000)
           ..repeat(reverse: true);
-      case AgentSpeaking.thinking:
+      case SessionMode.thinking:
         _controller
           ..duration = const Duration(milliseconds: 600)
           ..repeat(reverse: true);
-      case AgentSpeaking.idle:
+      case SessionMode.idle:
         _controller
           ..stop()
           ..value = 0;
@@ -68,8 +68,8 @@ class _DrMuhammadAvatarState extends State<DrMuhammadAvatar>
     return AnimatedBuilder(
       animation: _glowAnimation,
       builder: (context, child) {
-        final isSpeaking = widget.agentStatus == AgentSpeaking.speaking;
-        final isThinking = widget.agentStatus == AgentSpeaking.thinking;
+        final isSpeaking = widget.agentStatus == SessionMode.doctorSpeaking;
+        final isThinking = widget.agentStatus == SessionMode.thinking;
         final glowVal = _glowAnimation.value;
 
         final Color borderColor;

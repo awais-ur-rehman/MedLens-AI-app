@@ -5,11 +5,10 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 
-/// Handles camera initialization, periodic frame capture, and JPEG compression.
+/// Handles camera initialization, single frame capture, and live streaming bursts.
 ///
-/// Frames are captured at a configurable interval (default 1 s), resized to
-/// a max of 1024 px on the longest side, and JPEG-encoded at quality 70 before
-/// being delivered via the [onFrame] callback.
+/// Images are resized to a max of 1024 px on the longest side, and JPEG-encoded
+/// at quality 70 to save bandwidth and API cost.
 class CameraService {
   CameraController? _controller;
   Timer? _captureTimer;
@@ -48,14 +47,35 @@ class CameraService {
   }
 
   // ---------------------------------------------------------------
-  //  Periodic frame capture
+  //  Single Photo Capture
+  // ---------------------------------------------------------------
+
+  /// Capture a single, high-quality JPEG frame on-demand.
+  Future<Uint8List?> capturePhoto() async {
+    if (_controller == null || !_controller!.value.isInitialized) return null;
+    if (_controller!.value.isTakingPicture) return null;
+
+    try {
+      final xFile = await _controller!.takePicture();
+      final rawBytes = await xFile.readAsBytes();
+
+      // Clean up temp file
+      try {
+        await File(xFile.path).delete();
+      } catch (_) {}
+
+      return _compressImage(rawBytes);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  //  Live Streaming (On-Demand Burst)
   // ---------------------------------------------------------------
 
   /// Start capturing JPEG frames at [intervalMs] millisecond intervals.
-  ///
-  /// Each frame is resized (max 1024 px longest side) and JPEG-compressed
-  /// (quality 70) before [onFrame] is called with the resulting bytes.
-  void startCapturing({
+  void startLiveStream({
     required void Function(Uint8List jpegBytes) onFrame,
     int intervalMs = 1000,
   }) {
@@ -68,8 +88,8 @@ class CameraService {
     );
   }
 
-  /// Stop the periodic capture timer.
-  void stopCapturing() {
+  /// Stop the active live stream timer.
+  void stopLiveStream() {
     _captureTimer?.cancel();
     _captureTimer = null;
   }
@@ -134,7 +154,7 @@ class CameraService {
 
   /// Release all camera resources.
   Future<void> dispose() async {
-    stopCapturing();
+    stopLiveStream();
     await _controller?.dispose();
     _controller = null;
   }

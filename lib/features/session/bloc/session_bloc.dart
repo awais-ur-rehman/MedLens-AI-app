@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:medlens_mobile/features/session/bloc/session_event.dart';
@@ -35,11 +36,26 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     on<ServerAudioReceived>(_onServerAudio);
     on<BargeInTriggered>(_onBargeIn);
     on<TextMessageSent>(_onTextMessage);
+    on<CameraRequested>(_onCameraRequested);
+    on<MicTapped>(_onMicTapped);
+    on<CameraOpened>(_onCameraOpened);
+    on<CameraInitialized>(_onCameraInitialized);
+    on<PhotoCaptured>(_onPhotoCaptured);
+    on<LiveStreamStarted>(_onLiveStreamStarted);
+    on<LiveStreamStopped>(_onLiveStreamStopped);
+    on<CameraClosed>(_onCameraClosed);
+    on<AudioPlaybackFinished>(_onAudioPlaybackFinished);
   }
 
   final WebSocketService _ws;
   final AudioService _audio;
   final CameraService _camera;
+
+  /// Buffer for accumulating audio chunks during an agent turn.
+  final List<Uint8List> _turnAudioBuffer = [];
+
+  /// Expose camera service for providing the CameraController to the UI.
+  CameraService get camera => _camera;
 
   StreamSubscription<Map<String, dynamic>>? _jsonSub;
   StreamSubscription<dynamic>? _audioSub;
@@ -82,8 +98,10 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
       emit(state.copyWith(
         status: SessionStatus.active,
         sessionId: sessionId,
-        agentStatus: AgentSpeaking.listening,
+        sessionMode: SessionMode.idle,
         isMicActive: true,
+        isCameraActive: false,
+        cameraMode: CameraMode.inactive,
         transcript: const [],
         overlays: const [],
         citations: const [],
@@ -117,7 +135,8 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     emit(state.copyWith(
       isMicActive: false,
       isCameraActive: false,
-      agentStatus: AgentSpeaking.idle,
+      cameraMode: CameraMode.inactive,
+      sessionMode: SessionMode.idle,
     ));
 
     // We don't immediately set status = ended here — that happens when the
@@ -132,6 +151,9 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     AudioChunkReceived event,
     Emitter<SessionState> emit,
   ) {
+    // Always forward mic audio when session is active.
+    // Gemini Live API handles VAD and barge-in on the server side.
+    // The doctorSpeaking mode is UI-only and must not block user audio.
     if (state.status == SessionStatus.active) {
       _ws.sendBinary(event.chunk);
     }
@@ -167,22 +189,41 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
 
     switch (type) {
       case 'session_started':
-        emit(state.copyWith(agentStatus: AgentSpeaking.listening));
+        emit(state.copyWith(sessionMode: SessionMode.idle));
 
       case 'transcript':
         final text = msg['text'] as String? ?? '';
         final isEscalation = msg['escalation'] as bool? ?? false;
 
-        final message = MessageModel(
-          text: text,
-          speaker: 'agent',
-          timestamp: DateTime.now(),
-        );
-
-        emit(state.copyWith(
-          transcript: [...state.transcript, message],
-          agentStatus: AgentSpeaking.speaking,
-        ));
+        if (state.isAgentTurnActive) {
+          // APPEND to the last agent message
+          final updatedTranscript = List<MessageModel>.from(state.transcript);
+          if (updatedTranscript.isNotEmpty && updatedTranscript.last.speaker == 'agent') {
+            final lastMsg = updatedTranscript.last;
+            updatedTranscript[updatedTranscript.length - 1] = lastMsg.copyWith(
+              text: lastMsg.text + text,
+            );
+            emit(state.copyWith(
+              transcript: updatedTranscript,
+              sessionMode: SessionMode.doctorSpeaking,
+            ));
+          } else {
+            // Edge case: turn is active but no agent message exists — start one.
+            final message = MessageModel(text: text, speaker: 'agent', timestamp: DateTime.now());
+            emit(state.copyWith(
+              transcript: [...state.transcript, message],
+              sessionMode: SessionMode.doctorSpeaking,
+            ));
+          }
+        } else {
+          // START a new agent turn
+          final message = MessageModel(text: text, speaker: 'agent', timestamp: DateTime.now());
+          emit(state.copyWith(
+            transcript: [...state.transcript, message],
+            isAgentTurnActive: true,
+            sessionMode: SessionMode.doctorSpeaking,
+          ));
+        }
 
         // If escalation flag is set the UI layer should show an alert.
         if (isEscalation) {
@@ -190,6 +231,63 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
             errorMessage: '🚨 Emergency escalation — call emergency services!',
           ));
         }
+
+      case 'user_transcript':
+        final text = msg['text'] as String? ?? '';
+        if (text.isNotEmpty) {
+          emit(state.copyWith(isAgentTurnActive: false)); // user interrupted
+          final message = MessageModel(
+            text: text,
+            speaker: 'user',
+            timestamp: DateTime.now(),
+          );
+          emit(state.copyWith(
+            transcript: [...state.transcript, message],
+            sessionMode: SessionMode.userSpeaking,
+          ));
+        }
+
+      case 'turn_complete':
+        final speaker = msg['speaker'] as String? ?? '';
+        if (speaker == 'agent') {
+          // Play the accumulated audio for this turn all at once as a continuous WAV flow.
+          if (_turnAudioBuffer.isNotEmpty) {
+            final totalLength = _turnAudioBuffer.fold<int>(0, (sum, chunk) => sum + chunk.length);
+            final mergedAudio = Uint8List(totalLength);
+            int offset = 0;
+            for (final chunk in _turnAudioBuffer) {
+              mergedAudio.setAll(offset, chunk);
+              offset += chunk.length;
+            }
+            
+            _audio.playWavBuffer(mergedAudio, () {
+              if (!isClosed) {
+                add(const AudioPlaybackFinished());
+              }
+            });
+            _turnAudioBuffer.clear();
+
+            emit(state.copyWith(
+              isAgentTurnActive: false,
+              // Keep sessionMode as doctorSpeaking until audio finishes playing!
+            ));
+          } else {
+            // No audio received, immediately return to idle
+            emit(state.copyWith(
+              isAgentTurnActive: false,
+              sessionMode: SessionMode.idle,
+            ));
+          }
+        }
+
+      case 'request_camera':
+        final prompt = msg['prompt'] as String? ?? '';
+        add(CameraRequested(prompt));
+
+      case 'request_live_camera':
+        final prompt = msg['prompt'] as String? ?? '';
+        final duration = msg['duration_seconds'] as int? ?? 10;
+        add(LiveStreamStarted(prompt, duration));
 
       case 'assessment':
         final data = msg['data'] as Map<String, dynamic>? ?? msg;
@@ -214,11 +312,11 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
         emit(state.copyWith(
           careSummary: CareSummaryModel.fromJson(data),
           status: SessionStatus.ended,
-          agentStatus: AgentSpeaking.idle,
+          sessionMode: SessionMode.idle,
         ));
 
       case 'agent_thinking':
-        emit(state.copyWith(agentStatus: AgentSpeaking.thinking));
+        emit(state.copyWith(sessionMode: SessionMode.thinking));
 
       case 'error':
         emit(state.copyWith(
@@ -228,13 +326,13 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
       case 'session_ended':
         emit(state.copyWith(
           status: SessionStatus.ended,
-          agentStatus: AgentSpeaking.idle,
+          sessionMode: SessionMode.idle,
         ));
 
       case 'disconnected':
         emit(state.copyWith(
           status: SessionStatus.ended,
-          agentStatus: AgentSpeaking.idle,
+          sessionMode: SessionMode.idle,
           errorMessage: 'Connection lost',
         ));
     }
@@ -248,9 +346,30 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     ServerAudioReceived event,
     Emitter<SessionState> emit,
   ) {
-    _audio.playChunk(event.audioData);
-    if (state.agentStatus != AgentSpeaking.speaking) {
-      emit(state.copyWith(agentStatus: AgentSpeaking.speaking));
+    _turnAudioBuffer.add(event.audioData);
+    if (state.sessionMode != SessionMode.doctorSpeaking) {
+      emit(state.copyWith(sessionMode: SessionMode.doctorSpeaking));
+    }
+  }
+
+  // ---------------------------------------------------------------
+  //  MicTapped
+  // ---------------------------------------------------------------
+
+  Future<void> _onMicTapped(
+    MicTapped event,
+    Emitter<SessionState> emit,
+  ) async {
+    if (state.status != SessionStatus.active) return;
+
+    if (state.sessionMode == SessionMode.doctorSpeaking) {
+      // Doctor is speaking — interrupt (barge-in).
+      add(BargeInTriggered());
+    } else {
+      // User just finished speaking or session is idle.
+      // Send explicit end-of-turn so Gemini responds immediately
+      // without relying solely on VAD silence detection.
+      _ws.sendJson({'type': 'end_of_turn'});
     }
   }
 
@@ -264,11 +383,12 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   ) async {
     // Immediately cut Dr. Muhammad's audio.
     await _audio.stopPlayback();
+    _turnAudioBuffer.clear();
 
     // Tell the backend to interrupt the model.
     _ws.sendJson({'type': 'barge_in'});
 
-    emit(state.copyWith(agentStatus: AgentSpeaking.listening));
+    emit(state.copyWith(sessionMode: SessionMode.userSpeaking));
   }
 
   // ---------------------------------------------------------------
@@ -301,12 +421,78 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   // ---------------------------------------------------------------
 
   @override
-  Future<void> close() async {
-    await _jsonSub?.cancel();
-    await _audioSub?.cancel();
-    await _ws.disconnect();
-    await _audio.dispose();
-    // CameraService dispose is handled by the widget that owns the controller.
+  Future<void> close() {
+    _jsonSub?.cancel();
+    _audioSub?.cancel();
+    _ws.disconnect();
     return super.close();
+  }
+
+  // ---------------------------------------------------------------
+  //  Camera Flow
+  // ---------------------------------------------------------------
+
+  void _onCameraRequested(CameraRequested event, Emitter<SessionState> emit) {
+    emit(state.copyWith(cameraButtonPulsing: true));
+  }
+
+  Future<void> _onCameraOpened(CameraOpened event, Emitter<SessionState> emit) async {
+    emit(state.copyWith(cameraButtonPulsing: false, cameraInitializing: true));
+    try {
+      await _camera.initialize();
+    } catch (e) {
+      emit(state.copyWith(
+        cameraInitializing: false,
+        errorMessage: 'Camera failed to start: $e',
+      ));
+      return;
+    }
+    emit(state.copyWith(
+      cameraMode: CameraMode.captureReady,
+      isCameraActive: true,
+      cameraInitializing: false,
+    ));
+  }
+
+  void _onCameraInitialized(CameraInitialized event, Emitter<SessionState> emit) {
+    emit(state.copyWith(cameraInitializing: false));
+  }
+
+  void _onPhotoCaptured(PhotoCaptured event, Emitter<SessionState> emit) {
+    if (state.status == SessionStatus.active) {
+      final b64 = base64Encode(event.jpegFrame);
+      _ws.sendJson({
+        'type': 'image_frame',
+        'data': b64,
+      });
+    }
+    emit(state.copyWith(
+      cameraMode: CameraMode.inactive,
+      isCameraActive: false,
+      lastCapturedImage: event.jpegFrame,
+    ));
+  }
+
+  void _onLiveStreamStarted(LiveStreamStarted event, Emitter<SessionState> emit) {
+    emit(state.copyWith(cameraMode: CameraMode.liveStreaming, isCameraActive: true));
+    _camera.startLiveStream(
+      onFrame: (bytes) => add(CameraFrameCaptured(bytes)),
+      intervalMs: 1000,
+    );
+  }
+
+  void _onLiveStreamStopped(LiveStreamStopped event, Emitter<SessionState> emit) {
+    _camera.stopLiveStream();
+    emit(state.copyWith(cameraMode: CameraMode.inactive, isCameraActive: false));
+  }
+
+  void _onCameraClosed(CameraClosed event, Emitter<SessionState> emit) {
+    emit(state.copyWith(cameraMode: CameraMode.inactive));
+  }
+
+  void _onAudioPlaybackFinished(AudioPlaybackFinished event, Emitter<SessionState> emit) {
+    if (state.sessionMode == SessionMode.doctorSpeaking) {
+      emit(state.copyWith(sessionMode: SessionMode.idle));
+    }
   }
 }
