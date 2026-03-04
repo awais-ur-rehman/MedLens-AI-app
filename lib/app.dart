@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:medlens_mobile/config/router.dart';
 import 'package:medlens_mobile/config/theme.dart';
 import 'package:medlens_mobile/features/session/bloc/session_bloc.dart';
+import 'package:medlens_mobile/features/summary/bloc/summary_bloc.dart';
 
 /// Root application widget.
 ///
@@ -18,9 +19,9 @@ class App extends StatelessWidget {
         BlocProvider<SessionBloc>(
           create: (_) => SessionBloc(),
         ),
-        // Add more BlocProviders here as features grow:
-        // BlocProvider<SummaryBloc>(create: (_) => SummaryBloc()),
-        // BlocProvider<HistoryBloc>(create: (_) => HistoryBloc()),
+        BlocProvider<SummaryBloc>(
+          create: (_) => SummaryBloc(),
+        ),
       ],
       child: MaterialApp.router(
         title: 'MedLens AI',
