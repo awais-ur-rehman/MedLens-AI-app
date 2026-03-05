@@ -1,184 +1,152 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// MedLens AI brand theme.
-///
-/// Design philosophy: calm, professional, trustworthy.
-/// A medical app that feels reassuring — not flashy.
+/// MedLens AI brand theme — dark, calm, trustworthy.
 class MedLensTheme {
   MedLensTheme._();
 
-  // ──────────────────────────── Brand Palette ────────────────────────────
+  // ─────────────────────────── Palette ───────────────────────────────────────
 
-  /// Trust blue — primary actions, links, active states.
-  static const Color primary = Color(0xFF1A73E8);
+  static const Color background   = Color(0xFF080C18); // near-black navy
+  static const Color surface      = Color(0xFF0F1629); // dark navy card
+  static const Color surfaceElev  = Color(0xFF151E35); // slightly lighter card
+  static const Color primary      = Color(0xFF4F6EF7); // electric blue
+  static const Color accent       = Color(0xFF7C3AED); // purple
+  static const Color secondary    = Color(0xFF10B981); // emerald (success)
+  static const Color error        = Color(0xFFEF4444); // red
+  static const Color warning      = Color(0xFFF59E0B); // amber
+  static const Color divider      = Color(0xFF1E2D52); // subtle border
+  static const Color textPrimary  = Color(0xFFF1F5FF); // near-white
+  static const Color textSecondary= Color(0xFF8899CC); // blue-grey
+  static const Color textHint     = Color(0xFF445077); // dimmed blue-grey
+  static const Color onPrimary    = Color(0xFFFFFFFF);
+  static const Color cameraOverlay= Color(0xCC000000);
 
-  /// Health green — success states, "healthy" indicators.
-  static const Color secondary = Color(0xFF34A853);
+  // ─────────────────────────── Gradients ─────────────────────────────────────
 
-  /// Severity red — errors, high-severity badges, destructive actions.
-  static const Color error = Color(0xFFEA4335);
+  static const LinearGradient primaryGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primary, accent],
+  );
 
-  /// Caution yellow — warnings, medium-severity badges.
-  static const Color warning = Color(0xFFFBBC04);
+  static const LinearGradient backgroundGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF0A0F1E), Color(0xFF120A30)],
+  );
 
-  /// Pure white surface for cards and sheets.
-  static const Color surface = Color(0xFFFFFFFF);
+  // ─────────────────────────── Severity ──────────────────────────────────────
 
-  /// Subtle warm grey background — softer than pure white.
-  static const Color background = Color(0xFFF8F9FA);
-
-  /// Semi-transparent black for camera overlay regions.
-  static const Color cameraOverlay = Color(0xCC000000);
-
-  /// Text on light backgrounds.
-  static const Color textPrimary = Color(0xFF202124);
-
-  /// Secondary / muted text.
-  static const Color textSecondary = Color(0xFF5F6368);
-
-  /// Hint / disabled text.
-  static const Color textHint = Color(0xFF9AA0A6);
-
-  /// Divider / border colour.
-  static const Color divider = Color(0xFFDADCE0);
-
-  /// White — used for text on coloured surfaces.
-  static const Color onPrimary = Color(0xFFFFFFFF);
-
-  // ────────────────────────── Severity Helpers ───────────────────────────
-
-  /// Map severity string → colour.
   static Color severityColor(String? severity) => switch (severity) {
-        'low' => secondary,
+        'low'    => secondary,
         'medium' => warning,
-        'high' => error,
-        _ => primary,
+        'high'   => error,
+        _        => primary,
       };
 
-  // ─────────────────────────── Light Theme ───────────────────────────────
+  // ─────────────────────────── ThemeData ─────────────────────────────────────
 
   static ThemeData get lightTheme {
-    final base = ThemeData(useMaterial3: true);
-    final textTheme = GoogleFonts.interTextTheme(base.textTheme);
+    final base       = ThemeData(useMaterial3: true, brightness: Brightness.dark);
+    final textTheme  = GoogleFonts.interTextTheme(base.textTheme);
 
     return base.copyWith(
-      // Colour system
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
+      colorScheme: ColorScheme.dark(
+        surface: surface,
         primary: primary,
         onPrimary: onPrimary,
-        secondary: secondary,
+        secondary: accent,
         error: error,
-        surface: surface,
         onSurface: textPrimary,
-        brightness: Brightness.light,
       ),
-
-      // Scaffold
       scaffoldBackgroundColor: background,
-
-      // Typography
       textTheme: textTheme.copyWith(
         headlineLarge: textTheme.headlineLarge?.copyWith(
-          color: textPrimary,
-          fontWeight: FontWeight.w700,
+          color: textPrimary, fontWeight: FontWeight.w700,
         ),
         headlineMedium: textTheme.headlineMedium?.copyWith(
-          color: textPrimary,
-          fontWeight: FontWeight.w600,
+          color: textPrimary, fontWeight: FontWeight.w600,
         ),
         titleLarge: textTheme.titleLarge?.copyWith(
-          color: textPrimary,
-          fontWeight: FontWeight.w600,
+          color: textPrimary, fontWeight: FontWeight.w600,
         ),
         titleMedium: textTheme.titleMedium?.copyWith(
-          color: textPrimary,
-          fontWeight: FontWeight.w500,
+          color: textPrimary, fontWeight: FontWeight.w500,
         ),
-        bodyLarge: textTheme.bodyLarge?.copyWith(color: textPrimary),
+        bodyLarge:  textTheme.bodyLarge?.copyWith(color: textPrimary),
         bodyMedium: textTheme.bodyMedium?.copyWith(color: textSecondary),
-        bodySmall: textTheme.bodySmall?.copyWith(color: textHint),
-        labelLarge: textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        bodySmall:  textTheme.bodySmall?.copyWith(color: textHint),
+        labelLarge: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
 
-      // AppBar — transparent, no elevation, clean.
+      // AppBar
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: background,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        titleTextStyle: textTheme.titleLarge?.copyWith(
-          color: textPrimary,
+        titleTextStyle: GoogleFonts.inter(
+          fontSize: 17,
           fontWeight: FontWeight.w600,
-          fontSize: 18,
+          color: textPrimary,
+          letterSpacing: -0.2,
         ),
         iconTheme: const IconThemeData(color: textPrimary),
       ),
 
-      // Elevated buttons — full-width, 56px, rounded, bold.
+      // Elevated buttons
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
           foregroundColor: onPrimary,
           disabledBackgroundColor: divider,
           disabledForegroundColor: textHint,
-          minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          minimumSize: const Size(double.infinity, 54),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 0,
-          textStyle: textTheme.labelLarge?.copyWith(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.1,
+          textStyle: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.1,
           ),
         ),
       ),
 
-      // Outlined buttons — same shape, outlined.
+      // Outlined buttons
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primary,
-          minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          minimumSize: const Size(double.infinity, 54),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           side: const BorderSide(color: primary, width: 1.5),
-          textStyle: textTheme.labelLarge?.copyWith(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+          textStyle: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w600,
           ),
         ),
       ),
 
-      // Text buttons.
+      // Text buttons
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primary,
-          textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
         ),
       ),
 
-      // Cards — subtle elevation, rounded.
+      // Cards
       cardTheme: CardThemeData(
         color: surface,
-        elevation: 1,
-        shadowColor: Colors.black.withValues(alpha: 0.08),
+        elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: divider, width: 1),
         ),
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       ),
 
-      // Input fields.
+      // Input decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surface,
+        fillColor: surfaceElev,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
@@ -197,31 +165,28 @@ class MedLensTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: error),
         ),
-        hintStyle: textTheme.bodyMedium?.copyWith(color: textHint),
+        hintStyle: GoogleFonts.inter(color: textHint, fontSize: 15),
       ),
 
-      // Dividers.
+      // Dividers
       dividerTheme: const DividerThemeData(
-        color: divider,
-        thickness: 1,
-        space: 1,
+        color: divider, thickness: 1, space: 1,
       ),
 
-      // Bottom sheets.
+      // Bottom sheets
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: surface,
+        backgroundColor: surfaceElev,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
 
-      // Chips — used for citation badges.
+      // Chips (citation badges)
       chipTheme: ChipThemeData(
-        backgroundColor: background,
-        selectedColor: primary.withValues(alpha: 0.12),
-        labelStyle: textTheme.bodySmall?.copyWith(
-          color: textPrimary,
-          fontWeight: FontWeight.w500,
+        backgroundColor: surfaceElev,
+        selectedColor: primary.withValues(alpha: 0.2),
+        labelStyle: GoogleFonts.inter(
+          fontSize: 12, color: textPrimary, fontWeight: FontWeight.w500,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
@@ -230,21 +195,16 @@ class MedLensTheme {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
 
-      // Snackbar.
+      // Snackbar
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: textPrimary,
-        contentTextStyle: textTheme.bodyMedium?.copyWith(color: onPrimary),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        backgroundColor: surfaceElev,
+        contentTextStyle: GoogleFonts.inter(color: textPrimary, fontSize: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         behavior: SnackBarBehavior.floating,
       ),
 
-      // Icon.
-      iconTheme: const IconThemeData(
-        color: textSecondary,
-        size: 24,
-      ),
+      // Icon
+      iconTheme: const IconThemeData(color: textSecondary, size: 24),
     );
   }
 }

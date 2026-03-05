@@ -3,6 +3,8 @@ import 'package:medlens_mobile/features/home/view/home_screen.dart';
 import 'package:medlens_mobile/features/session/view/session_screen.dart';
 import 'package:medlens_mobile/features/summary/view/summary_screen.dart';
 import 'package:medlens_mobile/features/history/view/history_screen.dart';
+import 'package:medlens_mobile/features/guide/view/guide_screen.dart';
+import 'package:medlens_mobile/features/hospitals/view/hospitals_screen.dart';
 
 /// App router using GoRouter.
 class AppRouter {
@@ -30,6 +32,16 @@ class AppRouter {
         path: '/history',
         name: 'history',
         builder: (context, state) => const HistoryScreen(),
+      ),
+      GoRoute(
+        path: '/guide',
+        name: 'guide',
+        builder: (context, state) => const GuideScreen(),
+      ),
+      GoRoute(
+        path: '/hospitals',
+        name: 'hospitals',
+        builder: (context, state) => const HospitalsScreen(),
       ),
     ],
   );
