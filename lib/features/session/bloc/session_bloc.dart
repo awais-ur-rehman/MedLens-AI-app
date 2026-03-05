@@ -302,10 +302,16 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
         ));
 
       case 'citation':
-        final data = msg['data'] as Map<String, dynamic>? ?? msg;
-        emit(state.copyWith(
-          citations: [...state.citations, CitationModel.fromJson(data)],
-        ));
+        // Backend sends {"type":"citation","sources":[{source,url,...},...]}
+        final sources = msg['sources'] as List? ?? [];
+        if (sources.isNotEmpty) {
+          final newCitations = sources
+              .map((s) => CitationModel.fromJson(s as Map<String, dynamic>))
+              .toList();
+          emit(state.copyWith(
+            citations: [...state.citations, ...newCitations],
+          ));
+        }
 
       case 'care_summary':
         final data = msg['data'] as Map<String, dynamic>? ?? msg;
@@ -479,6 +485,10 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
       onFrame: (bytes) => add(CameraFrameCaptured(bytes)),
       intervalMs: 1000,
     );
+    // Auto-stop after the requested duration.
+    Future.delayed(Duration(seconds: event.durationSeconds), () {
+      if (!isClosed) add(LiveStreamStopped());
+    });
   }
 
   void _onLiveStreamStopped(LiveStreamStopped event, Emitter<SessionState> emit) {

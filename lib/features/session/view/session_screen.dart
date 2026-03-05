@@ -14,6 +14,7 @@ import 'package:medlens_mobile/features/session/widgets/overlay_painter.dart';
 import 'package:medlens_mobile/features/session/widgets/pulse_mic_button.dart';
 import 'package:medlens_mobile/features/session/widgets/severity_badge.dart';
 import 'package:medlens_mobile/features/session/widgets/transcript_panel.dart';
+import 'package:medlens_mobile/features/summary/bloc/summary_bloc.dart';
 
 class SessionScreen extends StatefulWidget {
   const SessionScreen({super.key});
@@ -112,6 +113,11 @@ class _SessionScreenState extends State<SessionScreen> {
           listenWhen: (prev, curr) => prev.status != curr.status,
           listener: (context, state) {
             if (state.status == SessionStatus.ended) {
+              // Bridge the summary to SummaryBloc before navigating.
+              // SummaryScreen reads from SummaryBloc, not SessionBloc.
+              if (state.careSummary != null) {
+                context.read<SummaryBloc>().add(SummaryLoaded(state.careSummary!));
+              }
               context.goNamed('summary');
             }
           },
