@@ -46,6 +46,32 @@ class CareSummaryModel extends Equatable {
     );
   }
 
+  CareSummaryModel copyWith({
+    String? sessionId,
+    DateTime? timestamp,
+    String? injuryType,
+    String? severity,
+    String? patientDescription,
+    List<String>? actionsTaken,
+    List<String>? medicationsDiscussed,
+    List<String>? followUpRecommendations,
+    List<String>? warningSigns,
+    String? disclaimer,
+  }) =>
+      CareSummaryModel(
+        sessionId: sessionId ?? this.sessionId,
+        timestamp: timestamp ?? this.timestamp,
+        injuryType: injuryType ?? this.injuryType,
+        severity: severity ?? this.severity,
+        patientDescription: patientDescription ?? this.patientDescription,
+        actionsTaken: actionsTaken ?? this.actionsTaken,
+        medicationsDiscussed: medicationsDiscussed ?? this.medicationsDiscussed,
+        followUpRecommendations:
+            followUpRecommendations ?? this.followUpRecommendations,
+        warningSigns: warningSigns ?? this.warningSigns,
+        disclaimer: disclaimer ?? this.disclaimer,
+      );
+
   Map<String, dynamic> toJson() => {
         'session_id': sessionId,
         'timestamp': timestamp.toIso8601String(),

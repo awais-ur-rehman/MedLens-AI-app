@@ -33,7 +33,7 @@ class App extends StatelessWidget {
           ),
         ),
         BlocProvider<SummaryBloc>(
-          create: (_) => SummaryBloc(),
+          create: (_) => SummaryBloc(storageService: storageService),
         ),
         BlocProvider<HistoryBloc>(
           create: (_) => HistoryBloc(storageService: storageService),
