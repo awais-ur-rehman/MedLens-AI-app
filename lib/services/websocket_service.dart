@@ -37,18 +37,38 @@ class WebSocketService {
   // ---------------------------------------------------------------
 
   /// Open a WebSocket connection to the backend.
+  ///
+  /// If a connection already exists it is closed first without emitting a
+  /// spurious 'disconnected' event (which would wrongly show an error banner).
   Future<void> connect() async {
+    // Close stale channel without triggering the disconnected event.
+    // We capture the old channel and null out _channel first so the onDone
+    // closure below can distinguish intentional from unexpected closures.
+    final staleChannel = _channel;
+    _channel = null;
+    if (staleChannel != null) {
+      await staleChannel.sink.close();
+    }
+
     final uri = Uri.parse('$_baseUrl/ws/session');
-    _channel = WebSocketChannel.connect(uri);
+    final newChannel = WebSocketChannel.connect(uri);
 
     // Wait for the underlying connection to be established.
-    await _channel!.ready;
+    await newChannel.ready;
 
-    // Listen and demux incoming frames.
-    _channel!.stream.listen(
+    _channel = newChannel;
+
+    // Each channel captures its own identity so onDone only fires the
+    // 'disconnected' event when *this* channel is still the active one.
+    newChannel.stream.listen(
       _onData,
       onError: _onError,
-      onDone: _onDone,
+      onDone: () {
+        if (_channel == newChannel) {
+          _channel = null;
+          _jsonController.add({'type': 'disconnected'});
+        }
+      },
       cancelOnError: false,
     );
   }
@@ -112,10 +132,5 @@ class WebSocketService {
       'type': 'error',
       'message': 'WebSocket error: $error',
     });
-  }
-
-  void _onDone() {
-    _jsonController.add({'type': 'disconnected'});
-    _channel = null;
   }
 }

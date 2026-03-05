@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:medlens_mobile/features/session/bloc/session_event.dart';
 import 'package:medlens_mobile/features/session/bloc/session_state.dart';
@@ -54,6 +55,10 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   /// Buffer for accumulating audio chunks during an agent turn.
   final List<Uint8List> _turnAudioBuffer = [];
 
+  /// True when the user triggered a barge-in. The next turn_complete from
+  /// Gemini will be the tail of the interrupted speech — discard its audio.
+  bool _bargeInActive = false;
+
   /// Expose camera service for providing the CameraController to the UI.
   CameraService get camera => _camera;
 
@@ -68,8 +73,19 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     SessionStarted event,
     Emitter<SessionState> emit,
   ) async {
+    // Cancel any orphaned subscriptions and clear stale runtime state from a
+    // previous session before opening a fresh connection.
+    await _jsonSub?.cancel();
+    await _audioSub?.cancel();
+    _jsonSub = null;
+    _audioSub = null;
+    _turnAudioBuffer.clear();
+    _bargeInActive = false;
+
     emit(state.copyWith(
       status: SessionStatus.connecting,
+      sessionMode: SessionMode.idle,
+      isAgentTurnActive: false,
       errorMessage: null,
     ));
 
@@ -186,6 +202,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   ) {
     final msg = event.message;
     final type = msg['type'] as String? ?? '';
+    debugPrint('[MedLens] ← SERVER: $type');
 
     switch (type) {
       case 'session_started':
@@ -235,21 +252,36 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
       case 'user_transcript':
         final text = msg['text'] as String? ?? '';
         if (text.isNotEmpty) {
-          emit(state.copyWith(isAgentTurnActive: false)); // user interrupted
           final message = MessageModel(
             text: text,
             speaker: 'user',
             timestamp: DateTime.now(),
           );
+          // Don't change sessionMode — we stay in thinking while waiting for
+          // the agent's response. Switching to userSpeaking here confused the
+          // mic button and could prompt the user to tap again prematurely.
           emit(state.copyWith(
             transcript: [...state.transcript, message],
-            sessionMode: SessionMode.userSpeaking,
+            isAgentTurnActive: false,
           ));
         }
 
       case 'turn_complete':
         final speaker = msg['speaker'] as String? ?? '';
+        debugPrint('[MedLens] TURN_COMPLETE speaker=$speaker, audioBuffer=${_turnAudioBuffer.length} chunks, bargeIn=$_bargeInActive');
         if (speaker == 'agent') {
+          // If a barge-in was active, this turn_complete is the tail of the
+          // interrupted speech. Discard its audio and return to userSpeaking.
+          if (_bargeInActive) {
+            _turnAudioBuffer.clear();
+            _bargeInActive = false;
+            emit(state.copyWith(
+              isAgentTurnActive: false,
+              sessionMode: SessionMode.userSpeaking,
+            ));
+            break;
+          }
+
           // Play the accumulated audio for this turn all at once as a continuous WAV flow.
           if (_turnAudioBuffer.isNotEmpty) {
             final totalLength = _turnAudioBuffer.fold<int>(0, (sum, chunk) => sum + chunk.length);
@@ -272,11 +304,18 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
               // Keep sessionMode as doctorSpeaking until audio finishes playing!
             ));
           } else {
-            // No audio received, immediately return to idle
-            emit(state.copyWith(
-              isAgentTurnActive: false,
-              sessionMode: SessionMode.idle,
-            ));
+            // Empty turn_complete — this is Gemini acknowledging the user's
+            // speech turn. The agent's actual response will arrive in the
+            // next receive() iteration. Stay in thinking if we're waiting
+            // for a response; only go idle if we weren't expecting one.
+            if (state.sessionMode == SessionMode.thinking) {
+              emit(state.copyWith(isAgentTurnActive: false));
+            } else {
+              emit(state.copyWith(
+                isAgentTurnActive: false,
+                sessionMode: SessionMode.idle,
+              ));
+            }
           }
         }
 
@@ -336,11 +375,21 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
         ));
 
       case 'disconnected':
-        emit(state.copyWith(
-          status: SessionStatus.ended,
-          sessionMode: SessionMode.idle,
-          errorMessage: 'Connection lost',
-        ));
+        debugPrint('[MedLens] ← DISCONNECTED (WebSocket closed by server)');
+        if (state.status == SessionStatus.ending) {
+          // Session was ending — treat disconnect as graceful end so we still
+          // navigate to the summary screen (possibly with no summary data).
+          emit(state.copyWith(
+            status: SessionStatus.ended,
+            sessionMode: SessionMode.idle,
+          ));
+        } else {
+          emit(state.copyWith(
+            status: SessionStatus.error,
+            sessionMode: SessionMode.idle,
+            errorMessage: 'Connection lost. Please start a new session.',
+          ));
+        }
     }
   }
 
@@ -353,6 +402,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     Emitter<SessionState> emit,
   ) {
     _turnAudioBuffer.add(event.audioData);
+    debugPrint('[MedLens] ← AUDIO chunk ${event.audioData.length}b (buffer: ${_turnAudioBuffer.length} chunks)');
     if (state.sessionMode != SessionMode.doctorSpeaking) {
       emit(state.copyWith(sessionMode: SessionMode.doctorSpeaking));
     }
@@ -366,16 +416,26 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     MicTapped event,
     Emitter<SessionState> emit,
   ) async {
-    if (state.status != SessionStatus.active) return;
+    debugPrint('[MedLens] MIC TAPPED — mode=${state.sessionMode}, status=${state.status}');
+    if (state.status != SessionStatus.active) {
+      debugPrint('[MedLens] MIC TAPPED ignored — session not active');
+      return;
+    }
 
     if (state.sessionMode == SessionMode.doctorSpeaking) {
-      // Doctor is speaking — interrupt (barge-in).
+      // Barge-in: interrupt Dr. Muhammad
+      debugPrint('[MedLens] → BARGE-IN');
       add(BargeInTriggered());
-    } else {
-      // User just finished speaking or session is idle.
-      // Send explicit end-of-turn so Gemini responds immediately
-      // without relying solely on VAD silence detection.
+    } else if (state.sessionMode == SessionMode.userSpeaking) {
+      // User taps mic again to SEND their speech
+      debugPrint('[MedLens] → end_of_turn sent to backend (user finished speaking)');
       _ws.sendJson({'type': 'end_of_turn'});
+      emit(state.copyWith(sessionMode: SessionMode.thinking));
+    } else {
+      // Idle / thinking → tap to START speaking
+      debugPrint('[MedLens] → activity_start sent to backend (user starting to speak)');
+      _ws.sendJson({'type': 'activity_start'});
+      emit(state.copyWith(sessionMode: SessionMode.userSpeaking));
     }
   }
 
@@ -390,8 +450,10 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     // Immediately cut Dr. Muhammad's audio.
     await _audio.stopPlayback();
     _turnAudioBuffer.clear();
+    _bargeInActive = true;
 
-    // Tell the backend to interrupt the model.
+    // Tell the backend about the barge-in (backend no longer sends ActivityEnd
+    // — auto-VAD detects the user's speech and interrupts Gemini naturally).
     _ws.sendJson({'type': 'barge_in'});
 
     emit(state.copyWith(sessionMode: SessionMode.userSpeaking));
@@ -501,6 +563,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   }
 
   void _onAudioPlaybackFinished(AudioPlaybackFinished event, Emitter<SessionState> emit) {
+    debugPrint('[MedLens] PLAYBACK FINISHED — mode was=${state.sessionMode}, now=idle');
     if (state.sessionMode == SessionMode.doctorSpeaking) {
       emit(state.copyWith(sessionMode: SessionMode.idle));
     }
