@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:medlens_mobile/models/message_model.dart';
 
@@ -167,6 +169,17 @@ class _TranscriptBubble extends StatelessWidget {
     final isAgent = message.speaker == 'agent';
     final width = MediaQuery.of(context).size.width;
 
+    // Photo messages get their own bubble style.
+    if (message.isPhoto && message.imageBytes != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: _PhotoBubble(imageBytes: message.imageBytes!),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Align(
@@ -239,6 +252,60 @@ class _UserBubble extends StatelessWidget {
           height: 1.45,
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Photo bubble (right-aligned, shown when user sends a photo)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PhotoBubble extends StatelessWidget {
+  const _PhotoBubble({required this.imageBytes});
+  final Uint8List imageBytes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Thumbnail
+        ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(4),
+            bottomLeft: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+          ),
+          child: Image.memory(
+            imageBytes,
+            width: 200,
+            height: 150,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(height: 4),
+        // "Photo sent" caption
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check_circle_rounded,
+              size: 12,
+              color: Colors.white.withValues(alpha: 0.45),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Photo sent to Dr. Muhammad',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -527,18 +527,36 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   }
 
   void _onPhotoCaptured(PhotoCaptured event, Emitter<SessionState> emit) {
-    if (state.status == SessionStatus.active) {
-      final b64 = base64Encode(event.jpegFrame);
-      _ws.sendJson({
-        'type': 'image_frame',
-        'data': b64,
-      });
-    }
+    // Add a photo bubble to the transcript immediately so the user sees it.
+    final photoMsg = MessageModel(
+      text: '',
+      speaker: 'user',
+      timestamp: DateTime.now(),
+      imageBytes: event.jpegFrame,
+    );
+
     emit(state.copyWith(
       cameraMode: CameraMode.inactive,
       isCameraActive: false,
       lastCapturedImage: event.jpegFrame,
+      transcript: [...state.transcript, photoMsg],
     ));
+
+    if (state.status == SessionStatus.active) {
+      // 1. Send the image to Gemini
+      final b64 = base64Encode(event.jpegFrame);
+      _ws.sendJson({'type': 'image_frame', 'data': b64});
+
+      // 2. Immediately follow with a text prompt so Gemini knows to analyze it.
+      //    Without this, the Live API doesn't automatically respond to a lone image.
+      _ws.sendJson({
+        'type': 'text',
+        'content': 'I just sent you a photo. Please analyze it and provide guidance.',
+      });
+
+      // 3. Show thinking indicator while Dr. Muhammad processes the image.
+      emit(state.copyWith(sessionMode: SessionMode.thinking));
+    }
   }
 
   void _onLiveStreamStarted(LiveStreamStarted event, Emitter<SessionState> emit) {

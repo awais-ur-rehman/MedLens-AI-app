@@ -33,6 +33,11 @@ class SummaryScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Care Summary'),
+            leading: IconButton(
+              icon: const Icon(Icons.home_rounded),
+              tooltip: 'Home',
+              onPressed: () => context.goNamed('home'),
+            ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.share_rounded),
@@ -116,16 +121,22 @@ class SummaryScreen extends StatelessWidget {
               const SizedBox(height: 16),
 
               // 8 ── Buttons ──────────────────────────────────────────
-              OutlinedButton.icon(
-                onPressed: () => _shareSummary(summary),
-                icon: const Icon(Icons.share_rounded, size: 20),
-                label: const Text('Share Summary'),
+              ElevatedButton.icon(
+                onPressed: () => context.goNamed('home'),
+                icon: const Icon(Icons.home_rounded, size: 20),
+                label: const Text('Back to Home'),
               ),
               const SizedBox(height: 10),
-              ElevatedButton.icon(
+              OutlinedButton.icon(
                 onPressed: () => context.goNamed('session'),
                 icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
                 label: const Text('Start New Session'),
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: () => _shareSummary(summary),
+                icon: const Icon(Icons.share_rounded, size: 18),
+                label: const Text('Share Summary'),
               ),
             ],
           ),
