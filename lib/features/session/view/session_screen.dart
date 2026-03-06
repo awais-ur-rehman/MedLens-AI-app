@@ -10,10 +10,12 @@ import 'package:medlens_mobile/features/session/bloc/session_event.dart';
 import 'package:medlens_mobile/features/session/bloc/session_state.dart';
 import 'package:medlens_mobile/features/session/widgets/citation_chip.dart';
 import 'package:medlens_mobile/features/session/widgets/dr_muhammad_avatar.dart';
+import 'package:medlens_mobile/features/session/widgets/overlay_painter.dart';
 import 'package:medlens_mobile/features/session/widgets/pulse_mic_button.dart';
 import 'package:medlens_mobile/features/session/widgets/severity_badge.dart';
 import 'package:medlens_mobile/features/session/widgets/transcript_panel.dart';
 import 'package:medlens_mobile/features/summary/bloc/summary_bloc.dart';
+import 'package:medlens_mobile/models/overlay_model.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Palette
@@ -471,7 +473,7 @@ class _SessionScreenState extends State<SessionScreen> {
                           ],
                         ),
                       )
-                    : _buildCameraPreview(context),
+                    : _buildCameraPreview(context, state.overlays),
               ),
 
               // ── Capture controls ────────────────────────────────────────
@@ -524,7 +526,8 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  Widget _buildCameraPreview(BuildContext context) {
+  Widget _buildCameraPreview(
+      BuildContext context, List<OverlayModel> overlays) {
     final controller = context.read<SessionBloc>().camera.controller;
     if (controller == null || !controller.value.isInitialized) {
       return const Center(
@@ -534,7 +537,17 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: CameraPreview(controller),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CameraPreview(controller),
+          // Visual overlay annotations from Dr. Muhammad
+          if (overlays.isNotEmpty)
+            CustomPaint(
+              painter: OverlayPainter(overlays: overlays),
+            ),
+        ],
+      ),
     );
   }
 

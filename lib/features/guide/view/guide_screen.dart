@@ -3,87 +3,25 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:medlens_mobile/config/theme.dart';
+import 'package:medlens_mobile/features/guide/data/guide_data.dart';
+import 'package:medlens_mobile/models/guide_entry.dart';
 
-/// First Aid Guide screen — interactive reference cards for 12 critical scenarios.
+/// First Aid Guide screen — 2-column grid of 12 critical first-aid scenarios.
 ///
-/// Day 3 implementation: full content. This stub shows the layout skeleton.
-class GuideScreen extends StatelessWidget {
+/// Tap any card to open the full step-by-step [GuideDetailScreen].
+class GuideScreen extends StatefulWidget {
   const GuideScreen({super.key});
 
-  static const _scenarios = [
-    _Scenario(
-      icon: Icons.local_fire_department_rounded,
-      title: 'Burns',
-      subtitle: 'Heat, chemical, electrical',
-      color: Color(0xFFEF4444),
-    ),
-    _Scenario(
-      icon: Icons.water_drop_rounded,
-      title: 'Bleeding',
-      subtitle: 'Cuts, lacerations, wounds',
-      color: Color(0xFFDC2626),
-    ),
-    _Scenario(
-      icon: Icons.air_rounded,
-      title: 'Choking',
-      subtitle: 'Airway obstruction',
-      color: Color(0xFFF59E0B),
-    ),
-    _Scenario(
-      icon: Icons.favorite_rounded,
-      title: 'Cardiac Arrest',
-      subtitle: 'CPR & AED guidance',
-      color: Color(0xFFEF4444),
-    ),
-    _Scenario(
-      icon: Icons.psychology_rounded,
-      title: 'Stroke',
-      subtitle: 'FAST recognition',
-      color: Color(0xFF8B5CF6),
-    ),
-    _Scenario(
-      icon: Icons.warning_rounded,
-      title: 'Anaphylaxis',
-      subtitle: 'Severe allergic reaction',
-      color: Color(0xFFF59E0B),
-    ),
-    _Scenario(
-      icon: Icons.broken_image_rounded,
-      title: 'Fractures',
-      subtitle: 'Broken bones & splinting',
-      color: Color(0xFF6366F1),
-    ),
-    _Scenario(
-      icon: Icons.thermostat_rounded,
-      title: 'Heat Stroke',
-      subtitle: 'Hyperthermia management',
-      color: Color(0xFFF97316),
-    ),
-    _Scenario(
-      icon: Icons.ac_unit_rounded,
-      title: 'Hypothermia',
-      subtitle: 'Cold exposure & frostbite',
-      color: Color(0xFF06B6D4),
-    ),
-    _Scenario(
-      icon: Icons.electric_bolt_rounded,
-      title: 'Electric Shock',
-      subtitle: 'Electrical injury response',
-      color: Color(0xFFFACC15),
-    ),
-    _Scenario(
-      icon: Icons.waves_rounded,
-      title: 'Drowning',
-      subtitle: 'Near-drowning rescue',
-      color: Color(0xFF3B82F6),
-    ),
-    _Scenario(
-      icon: Icons.bug_report_rounded,
-      title: 'Poisoning',
-      subtitle: 'Ingestion & toxic exposure',
-      color: Color(0xFF10B981),
-    ),
-  ];
+  @override
+  State<GuideScreen> createState() => _GuideScreenState();
+}
+
+class _GuideScreenState extends State<GuideScreen> {
+  String _filter = 'all'; // 'all' | 'critical' | 'high' | 'medium'
+
+  List<GuideEntry> get _filtered => _filter == 'all'
+      ? guideEntries
+      : guideEntries.where((e) => e.severity == _filter).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -97,15 +35,15 @@ class GuideScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Header info banner
+          // Info banner
           Container(
             margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: MedLensTheme.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
+              color: MedLensTheme.primary.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: MedLensTheme.primary.withValues(alpha: 0.2),
+                color: MedLensTheme.primary.withValues(alpha: 0.18),
               ),
             ),
             child: Row(
@@ -113,15 +51,15 @@ class GuideScreen extends StatelessWidget {
                 const Icon(
                   Icons.info_outline_rounded,
                   color: MedLensTheme.primary,
-                  size: 20,
+                  size: 18,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Tap any scenario to see step-by-step guidance, '
-                    'or start a session to get real-time help from Dr. Muhammad.',
+                    'Tap a scenario for step-by-step guidance. '
+                    'For real-time help, start a session with Dr. Muhammad.',
                     style: GoogleFonts.inter(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: MedLensTheme.textSecondary,
                       height: 1.4,
                     ),
@@ -130,22 +68,108 @@ class GuideScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.1,
-              ),
-              itemCount: _scenarios.length,
-              itemBuilder: (context, i) =>
-                  _ScenarioCard(scenario: _scenarios[i]),
+
+          // Filter chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: 'All',
+                  selected: _filter == 'all',
+                  onTap: () => setState(() => _filter = 'all'),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Critical',
+                  color: MedLensTheme.error,
+                  selected: _filter == 'critical',
+                  onTap: () => setState(() => _filter = 'critical'),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'High',
+                  color: MedLensTheme.warning,
+                  selected: _filter == 'high',
+                  onTap: () => setState(() => _filter = 'high'),
+                ),
+              ],
             ),
           ),
+
+          // Grid
+          Expanded(
+            child: _filtered.isEmpty
+                ? Center(
+                    child: Text(
+                      'No scenarios found.',
+                      style: GoogleFonts.inter(color: MedLensTheme.textHint),
+                    ),
+                  )
+                : GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.05,
+                    ),
+                    itemCount: _filtered.length,
+                    itemBuilder: (context, i) =>
+                        _ScenarioCard(entry: _filtered[i]),
+                  ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+// =====================================================================
+//  Filter chip
+// =====================================================================
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.color,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = color ?? MedLensTheme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? activeColor.withValues(alpha: 0.15)
+              : MedLensTheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? activeColor : MedLensTheme.divider,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            color: selected ? activeColor : MedLensTheme.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -156,76 +180,81 @@ class GuideScreen extends StatelessWidget {
 // =====================================================================
 
 class _ScenarioCard extends StatelessWidget {
-  const _ScenarioCard({required this.scenario});
-  final _Scenario scenario;
+  const _ScenarioCard({required this.entry});
+  final GuideEntry entry;
 
   @override
   Widget build(BuildContext context) {
+    final isCritical = entry.severity == 'critical';
+
     return GestureDetector(
-      onTap: () {
-        // Day 3: navigate to scenario detail screen
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${scenario.title} guide — coming in Day 3!'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
+      onTap: () => context.goNamed(
+        'guide_detail',
+        pathParameters: {'id': entry.id},
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: MedLensTheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: MedLensTheme.divider),
+          border: Border.all(
+            color: isCritical
+                ? entry.color.withValues(alpha: 0.25)
+                : MedLensTheme.divider,
+          ),
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: scenario.color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(scenario.icon, color: scenario.color, size: 24),
+            // Icon + severity dot
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: entry.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(entry.icon, color: entry.color, size: 22),
+                ),
+                const Spacer(),
+                if (isCritical)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: entry.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
             ),
             const Spacer(),
             Text(
-              scenario.title,
+              entry.title,
               style: GoogleFonts.inter(
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: MedLensTheme.textPrimary,
+                height: 1.25,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
-              scenario.subtitle,
+              entry.tldr,
               style: GoogleFonts.inter(
                 fontSize: 11,
-                color: MedLensTheme.textHint,
+                color: entry.color,
+                fontWeight: FontWeight.w500,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
       ),
     );
   }
-}
-
-class _Scenario {
-  const _Scenario({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
 }

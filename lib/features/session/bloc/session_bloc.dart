@@ -46,6 +46,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     on<LiveStreamStopped>(_onLiveStreamStopped);
     on<CameraClosed>(_onCameraClosed);
     on<AudioPlaybackFinished>(_onAudioPlaybackFinished);
+    on<OverlaysCleared>(_onOverlaysCleared);
   }
 
   final WebSocketService _ws;
@@ -339,6 +340,10 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
         emit(state.copyWith(
           overlays: [...state.overlays, OverlayModel.fromJson(data)],
         ));
+        // Auto-clear after 8 seconds so the UI doesn't accumulate stale overlays.
+        Future.delayed(const Duration(seconds: 8), () {
+          if (!isClosed) add(const OverlaysCleared());
+        });
 
       case 'citation':
         // Backend sends {"type":"citation","sources":[{source,url,...},...]}
@@ -584,6 +589,12 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     debugPrint('[MedLens] PLAYBACK FINISHED — mode was=${state.sessionMode}, now=idle');
     if (state.sessionMode == SessionMode.doctorSpeaking) {
       emit(state.copyWith(sessionMode: SessionMode.idle));
+    }
+  }
+
+  void _onOverlaysCleared(OverlaysCleared event, Emitter<SessionState> emit) {
+    if (state.overlays.isNotEmpty) {
+      emit(state.copyWith(overlays: []));
     }
   }
 }

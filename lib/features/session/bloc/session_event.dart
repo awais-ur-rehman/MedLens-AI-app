@@ -119,3 +119,8 @@ final class AudioPlaybackFinished extends SessionEvent {
   @override
   List<Object?> get props => [];
 }
+
+/// All active camera overlays have expired (auto-cleared after 8 s).
+final class OverlaysCleared extends SessionEvent {
+  const OverlaysCleared();
+}

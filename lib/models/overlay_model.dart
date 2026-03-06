@@ -29,11 +29,14 @@ class OverlayModel extends Equatable {
         (e) => e.name == json['type'],
         orElse: () => OverlayType.highlight,
       ),
-      x: (json['x'] as num).toDouble(),
-      y: (json['y'] as num).toDouble(),
-      width: (json['width'] as num).toDouble(),
-      height: (json['height'] as num).toDouble(),
-      label: json['label'] as String?,
+      // Coordinates are optional — backend may send region/instruction format
+      // instead of pixel-normalised x/y/width/height. Default to a centred box.
+      x: (json['x'] as num?)?.toDouble() ?? 0.2,
+      y: (json['y'] as num?)?.toDouble() ?? 0.3,
+      width: (json['width'] as num?)?.toDouble() ?? 0.6,
+      height: (json['height'] as num?)?.toDouble() ?? 0.25,
+      // 'instruction' (prompt format) falls back gracefully to 'label'
+      label: json['label'] as String? ?? json['instruction'] as String?,
       severity: json['severity'] as String?,
     );
   }

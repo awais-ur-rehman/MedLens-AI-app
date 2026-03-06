@@ -4,6 +4,7 @@ import 'package:medlens_mobile/features/session/view/session_screen.dart';
 import 'package:medlens_mobile/features/summary/view/summary_screen.dart';
 import 'package:medlens_mobile/features/history/view/history_screen.dart';
 import 'package:medlens_mobile/features/guide/view/guide_screen.dart';
+import 'package:medlens_mobile/features/guide/view/guide_detail_screen.dart';
 import 'package:medlens_mobile/features/hospitals/view/hospitals_screen.dart';
 
 /// App router using GoRouter.
@@ -37,6 +38,13 @@ class AppRouter {
         path: '/guide',
         name: 'guide',
         builder: (context, state) => const GuideScreen(),
+      ),
+      GoRoute(
+        path: '/guide/:id',
+        name: 'guide_detail',
+        builder: (context, state) => GuideDetailScreen(
+          entryId: state.pathParameters['id']!,
+        ),
       ),
       GoRoute(
         path: '/hospitals',
