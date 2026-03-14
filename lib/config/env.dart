@@ -9,8 +9,8 @@ import 'dart:io';
 /// flutter run
 ///
 /// # Production (uses Cloud Run)
-/// flutter run --dart-define=BACKEND_WS_URL=wss://medlens-backend-nw7kauj2aa-uc.a.run.app \
-///             --dart-define=BACKEND_HTTP_URL=https://medlens-backend-nw7kauj2aa-uc.a.run.app
+/// flutter run --dart-define=BACKEND_WS_URL=wss://medlens-backend-854906476206.us-central1.run.app \
+///             --dart-define=BACKEND_HTTP_URL=https://medlens-backend-854906476206.us-central1.run.app
 /// ```
 enum Env { dev, prod }
 
